@@ -1,7 +1,19 @@
 RIGHT = 1
 LEFT = 2
-FASTEST = 3
-SLOWEST = 4
+
+class DiscoveryInstruction:
+    FASTEST = 1
+    SLOWEST = 2
+    CHECKRIGHT = 3
+    CHECKLEFT = 4
+
+class DirectionInstruction:
+    RotationDirection = LEFT
+    Rotations = 0
+
+    def __init__(self, direction, rotations):
+        self.RotationDirection = direction
+        self.Rotations = rotations
 
 class Direction:
     NORTH = 0
@@ -13,10 +25,16 @@ class Direction:
     def FastestRotation(current, final):
         difference = current - final
 
+        if (difference == 0):
+            return Direction(RIGHT, 0)
+
         if (difference == -1 or difference == 3):
-            return LEFT
+            return DirectionInstruction(LEFT, 1)
         
-        return RIGHT
+        if (difference == 2 or difference == -2):
+            return DirectionInstruction(RIGHT, 2)
+        
+        return DirectionInstruction(RIGHT, 1)
     
     @staticmethod
     def ReverseDirection(direction):
@@ -25,6 +43,28 @@ class Direction:
             revDirection = revDirection + 4
 
         return revDirection
+    
+    @staticmethod
+    def RequiredDirection(startPos, endPos):
+        required = Direction.NORTH
+
+        if (startPos.x < endPos.x):
+            required = Direction.EAST
+
+        elif (startPos.x > endPos.y):
+            required = Direction.WEST
+
+        elif (startPos.y < endPos.y):
+            required = Direction.SOUTH
+
+        return required
+    
+    def RightFrom(direction):
+        return direction + 1 if direction != Direction.WEST else Direction.NORTH
+    
+    def LeftFrom(direction):
+        return direction - 1 if direction != Direction.NORTH else Direction.WEST
+        
 
 
 class Position:
@@ -66,6 +106,31 @@ class Tile:
     def IsDiscovered(self):
         return all(self.CheckedDirections)
     
+    def GetDiscoveryInstruction(self, currentDirection, finalDirection):
+        #When entering a tile we know whether it has a wall behind it, and if it has a tile in front of it. So can work with that assumption.
+        undiscoveredDirections = self.CheckedDirections.count(False)
+
+        if (undiscoveredDirections == 0):
+            return DiscoveryInstruction.FASTEST
+        
+        if (currentDirection == finalDirection):
+            #If there is 1 undiscovered and we want to end up facing the same direction, we just want to check that direction and then point back again
+            #This is 2 rotations, as opposed to 4 if we just went the slowest way.
+            if (undiscoveredDirections == 1):
+                rightDirection = Direction.RightFrom(currentDirection)
+                return DiscoveryInstruction.CHECKRIGHT if self.CheckedDirections[rightDirection] else DiscoveryInstruction.CHECKLEFT
+
+            #If there are 2 it doesn't matter so may aswell go in the same direction 4 times
+            else:
+                return DiscoveryInstruction.SLOWEST
+        
+        #If we have already checked the end direction we know we need to go around backwards as unchecked is opposite
+        if (self.CheckedDirections[finalDirection]):
+            return DiscoveryInstruction.SLOWEST
+        
+        else:
+            return DiscoveryInstruction.FASTEST if undiscoveredDirections == 1 else DiscoveryInstruction.SLOWEST
+    
     def UpdateInfo(self, direction, hasWall):
         self.AvailableDirections[direction] = hasWall
         self.CheckedDirections[direction] = True
@@ -92,44 +157,80 @@ class Board:
 
     def ExceedsMapBounds(self, position):
         return position.x < 0 or position.x >= self.mapWidth or position.y < 0 or position.y >= self.mapHeight
+    
+    def GetTile(self, pos):
+        return self.map[pos.y][pos.x]
         
 
 
 class TurtleInfo:
-    currentDirection = Direction.NORTH
-    position = Position(0, 0)
-    goal = Position(0, 0)
+    CurrentDirection = Direction.NORTH
+    Pos = Position(0, 0)
+    Goal = Position(0, 0)
 
-    def __init__(self, start, goal):
-        self.position = start
-        self.goal = goal
+    def __init__(self, direction, start, goal):
+        self.Pos = start
+        self.Goal = goal
+
+    def Turn(self, direction):
+        #Turn 90 degrees in direction
+
+        if (direction == RIGHT):
+            self.CurrentDirection = Direction.RightFrom(self.CurrentDirection)
+
+        else:
+            self.CurrentDirection = Direction.LeftFrom(self.CurrentDirection)
+
+    def FacingWall(self):
+        distance = 50 #Get Distance
+        return distance < 75
 
 
 startPos = Position(4, 7) #X, Y
 endPos = Position(3, 0)
-turtle = TurtleInfo(startPos, endPos)
-
+turtle = TurtleInfo(Direction.NORTH, startPos, endPos)
+board = Board()
 
 currentRoute = [] #List of positions
 
 def GetNextPosition():
     global currentFastestRoute
-
     return currentFastestRoute.pop(0)
 
 def NextInstruction(currentPos, endPos):
-    global turtle
+    global board, turtle
+
+    nextDirection = Direction.RequiredDirection(currentPos, endPos)
+    currentTile = board.GetTile(currentPos)
+
+    instruction = Direction.FastestRotation(turtle.CurrentDirection, nextDirection)
+    discoveryInstruction = currentTile.GetDiscoveryInstruction(turtle.CurrentDirection, nextDirection)
     
-    nextDirection = Direction["NORTH"]
+    if (discoveryInstruction != DiscoveryInstruction.FASTEST):
+        #Can be optimised - doesn't need to turn 90 degrees
+        if (discoveryInstruction == DiscoveryInstruction.CHECKLEFT):
+            Turn(LEFT)
+            Turn(RIGHT)
+        
+        elif (discoveryInstruction == DiscoveryInstruction.CHECKRIGHT):
+            Turn(RIGHT)
+            Turn(LEFT)
 
-    if (currentPos.x < endPos.x):
-        nextDirection = Direction["EAST"]
+        else:
+            rotations = 4 - instruction.Rotations
+            instruction.Rotations = rotations
+            instruction.RotationDirection = RIGHT if instruction.RotationDirection == LEFT else LEFT
 
-    elif (currentPos.x > endPos.y):
-        nextDirection = Direction["WEST"]
+    for _ in range(instruction.Rotations):
+        Turn(instruction.RotationDirection)
 
-    elif (currentPos.y < endPos.y):
-        nextDirection = Direction["SOUTH"]
+            
 
-    rightTurns = nextDirection - turtle.currentDirection
 
+
+
+def Turn(direction):
+    global board, turtle
+
+    turtle.Turn(direction)
+    board.Discover(turtle.Pos, turtle.CurrentDirection, turtle.FacingWall())
