@@ -146,14 +146,26 @@ class Board:
             for x in range(self.mapWidth):
                 self.map[y].append(Tile(x, y))
 
-    def Discover(self, position, direction, hasWall):
-        self.map[position.y][position.x].UpdateInfo(direction, hasWall)
+    def Discover(self, position, direction, closestWall):
 
-        nextPos = position.NextPosition(direction)
-        if (self.ExceedsMapBounds(nextPos)):
-            return
+        horizChange = 0
+        vertChange = 0
 
-        self.map[nextPos.y][nextPos.x].UpdateInfo(Direction.ReverseDirection(direction), hasWall)
+        if (direction == Direction.NORTH or direction == Direction.SOUTH):
+            vertChange = direction - 1
+
+        else:
+            horizChange = (- direction) + 2
+
+        for i in range(closestWall + 1):
+            self.map[position.y + vertChange * i][position.x + horizChange * i].UpdateInfo(direction, i == closestWall)
+
+        for i in range(closestWall + 1, 0, -1):
+            if (self.ExceedsMapBounds(Position(position.x + horizChange, position.y + vertChange))):
+                continue
+
+            self.map[position.y + vertChange * i][position.x + horizChange * i].UpdateInfo(Direction.ReverseDirection(direction), i == closestWall + 1)
+
 
     def ExceedsMapBounds(self, position):
         return position.x < 0 or position.x >= self.mapWidth or position.y < 0 or position.y >= self.mapHeight
@@ -171,6 +183,7 @@ class TurtleInfo:
     def __init__(self, direction, start, goal):
         self.Pos = start
         self.Goal = goal
+        self.CurrentDirection = direction
 
     def Turn(self, direction):
         #Turn 90 degrees in direction
@@ -186,9 +199,10 @@ class TurtleInfo:
 
         self.Pos = self.Pos.NextPosition(self.CurrentDirection)
 
-    def FacingWall(self):
-        distance = 50 #Get Distance
-        return distance < 75
+    def ClosestWall(self):
+        distance = 62
+        tiles = round((62 - distance) / 10) / 25
+        return tiles
 
 
 def NextInstruction(currentPos, nextPos):
@@ -219,7 +233,7 @@ def NextInstruction(currentPos, nextPos):
         Turn(instruction.RotationDirection)
 
     #If we're facing the suggested direction and there's a wall we need a new route
-    if (turtle.FacingWall()):
+    if (turtle.ClosestWall() == 0):
         return False
     
     Forward()
@@ -231,14 +245,14 @@ def Forward():
     global board, turtle
 
     turtle.Forward()
-    board.Discover(turtle.Pos, turtle.CurrentDirection, turtle.FacingWall())
+    board.Discover(turtle.Pos, turtle.CurrentDirection, turtle.ClosestWall())
 
 
 def Turn(direction):
     global board, turtle
 
     turtle.Turn(direction)
-    board.Discover(turtle.Pos, turtle.CurrentDirection, turtle.FacingWall())
+    board.Discover(turtle.Pos, turtle.CurrentDirection, turtle.ClosestWall())
 
 
 def CalculateRoute():
