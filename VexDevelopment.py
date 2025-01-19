@@ -181,26 +181,20 @@ class TurtleInfo:
         else:
             self.CurrentDirection = Direction.LeftFrom(self.CurrentDirection)
 
+    def Forward(self):
+        #Drive Forward
+
+        self.Pos = self.Pos.NextPosition(self.CurrentDirection)
+
     def FacingWall(self):
         distance = 50 #Get Distance
         return distance < 75
 
 
-startPos = Position(4, 7) #X, Y
-endPos = Position(3, 0)
-turtle = TurtleInfo(Direction.NORTH, startPos, endPos)
-board = Board()
-
-currentRoute = [] #List of positions
-
-def GetNextPosition():
-    global currentFastestRoute
-    return currentFastestRoute.pop(0)
-
-def NextInstruction(currentPos, endPos):
+def NextInstruction(currentPos, nextPos):
     global board, turtle
 
-    nextDirection = Direction.RequiredDirection(currentPos, endPos)
+    nextDirection = Direction.RequiredDirection(currentPos, nextPos)
     currentTile = board.GetTile(currentPos)
 
     instruction = Direction.FastestRotation(turtle.CurrentDirection, nextDirection)
@@ -224,9 +218,20 @@ def NextInstruction(currentPos, endPos):
     for _ in range(instruction.Rotations):
         Turn(instruction.RotationDirection)
 
+    #If we're facing the suggested direction and there's a wall we need a new route
+    if (turtle.FacingWall()):
+        return False
+    
+    Forward()
+    return True
+
             
 
+def Forward():
+    global board, turtle
 
+    turtle.Forward()
+    board.Discover(turtle.Pos, turtle.CurrentDirection, turtle.FacingWall())
 
 
 def Turn(direction):
@@ -234,3 +239,25 @@ def Turn(direction):
 
     turtle.Turn(direction)
     board.Discover(turtle.Pos, turtle.CurrentDirection, turtle.FacingWall())
+
+
+def CalculateRoute():
+    pass
+
+
+startPos = Position(4, 7) #X, Y
+endPos = Position(3, 0)
+turtle = TurtleInfo(Direction.NORTH, startPos, endPos)
+board = Board()
+
+
+def Main():
+    global board, turtle
+    
+    currentRoute = CalculateRoute()
+    while (turtle.Pos != turtle.Goal):
+
+        movingTo = currentRoute.pop(0)
+        
+        if (not NextInstruction(turtle.Pos, movingTo)):
+            currentRoute = CalculateRoute()
