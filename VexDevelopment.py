@@ -96,7 +96,7 @@ class Position:
         return Position(self.x + vertModifier, self.y + horizModifier)
 
 class Tile:
-    Pos = Position()
+    Pos = Position(0, 0)
     AvailableDirections = (True, True, True, True) #North, East, South, West
     CheckedDirections = (False, False, False, False) 
 
@@ -136,15 +136,15 @@ class Tile:
         self.CheckedDirections[direction] = True
     
 class Board:
-    map = []
-    mapWidth = 8
-    mapHeight = 8
+    Map = []
+    MapWidth = 8
+    MapHeight = 8
 
     def __init__(self):
-        for y in range(self.mapHeight):
-            self.map.append([])
-            for x in range(self.mapWidth):
-                self.map[y].append(Tile(x, y))
+        for y in range(self.MapHeight):
+            self.Map.append([])
+            for x in range(self.MapWidth):
+                self.Map[y].append(Tile(x, y))
 
     def Discover(self, position, direction, closestWall):
 
@@ -158,20 +158,73 @@ class Board:
             horizChange = (- direction) + 2
 
         for i in range(closestWall + 1):
-            self.map[position.y + vertChange * i][position.x + horizChange * i].UpdateInfo(direction, i == closestWall)
+            self.Map[position.y + vertChange * i][position.x + horizChange * i].UpdateInfo(direction, i == closestWall)
 
         for i in range(closestWall + 1, 0, -1):
             if (self.ExceedsMapBounds(Position(position.x + horizChange, position.y + vertChange))):
                 continue
 
-            self.map[position.y + vertChange * i][position.x + horizChange * i].UpdateInfo(Direction.ReverseDirection(direction), i == closestWall + 1)
+            self.Map[position.y + vertChange * i][position.x + horizChange * i].UpdateInfo(Direction.ReverseDirection(direction), i == closestWall + 1)
 
 
     def ExceedsMapBounds(self, position):
-        return position.x < 0 or position.x >= self.mapWidth or position.y < 0 or position.y >= self.mapHeight
+        return position.x < 0 or position.x >= self.MapWidth or position.y < 0 or position.y >= self.MapHeight
     
     def GetTile(self, pos):
-        return self.map[pos.y][pos.x]
+        return self.Map[pos.y][pos.x]
+    
+    def GetCharacter(self, currentTile, direction):
+
+        isChecked = currentTile.CheckedDirections[direction]
+        isAvailable = currentTile.AvailableDirections[direction]
+
+        if (not isChecked):
+            return '?'
+        
+        return 'O' if isAvailable else '#'
+
+    
+    def PrintKnownBoard(self, turtle):
+        for y in range(self.MapHeight * 3):
+            print()
+            for x in range(self.MapWidth * 3):
+                xPoint = int(x / 3)
+                yPoint = int(y / 3)
+
+                currentTile = self.Map[yPoint][xPoint]
+                
+                yRem = y % 3
+                xRem = x % 3
+
+                character = ''
+
+                if (yRem != 1 and xRem != 1):
+                    character = '#'
+
+                elif (yRem == 1 and xRem == 1):
+                    if (turtle.Pos.x == xPoint and turtle.Pos.y == yPoint):
+                        character = 'T'
+                    elif (turtle.Goal.x == xPoint and turtle.Goal.y == yPoint):
+                        character = 'G'
+                    else:
+                        character = 'O'
+
+                elif (yRem == 0 and xRem == 1):
+                    character = self.GetCharacter(currentTile, Direction.NORTH)
+
+                elif (yRem == 1 and xRem == 0):
+                    character = self.GetCharacter(currentTile, Direction.WEST)
+
+                elif (yRem == 1 and xRem == 2):
+                    character = self.GetCharacter(currentTile, Direction.EAST)
+
+                elif (yRem == 2 and xRem == 1):
+                    character = self.GetCharacter(currentTile, Direction.SOUTH)
+
+                print(character, end='')
+                
+
+
         
 
 
@@ -259,11 +312,13 @@ def CalculateRoute():
     pass
 
 
+
 startPos = Position(4, 7) #X, Y
 endPos = Position(3, 0)
 turtle = TurtleInfo(Direction.NORTH, startPos, endPos)
 board = Board()
 
+board.PrintKnownBoard(turtle)
 
 def Main():
     global board, turtle
