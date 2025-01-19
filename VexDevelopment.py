@@ -1,3 +1,5 @@
+import random
+
 RIGHT = 1
 LEFT = 2
 
@@ -93,15 +95,17 @@ class Position:
             case Direction.WEST:
                 horizModifier = -1
 
-        return Position(self.x + vertModifier, self.y + horizModifier)
+        return Position(self.x + horizModifier, self.y + vertModifier)
 
 class Tile:
     Pos = Position(0, 0)
-    AvailableDirections = (True, True, True, True) #North, East, South, West
-    CheckedDirections = (False, False, False, False) 
+    AvailableDirections = [True, True, True, True] #North, East, South, West
+    CheckedDirections = [False, False, False, False] 
 
     def __init__(self, x, y):
         self.Pos = Position(x, y)
+        self.AvailableDirections = [True, True, True, True] #North, East, South, West
+        self.CheckedDirections = [False, False, False, False] 
 
     def IsDiscovered(self):
         return all(self.CheckedDirections)
@@ -171,6 +175,9 @@ class Board:
         return position.x < 0 or position.x >= self.MapWidth or position.y < 0 or position.y >= self.MapHeight
     
     def GetTile(self, pos):
+        if (self.ExceedsMapBounds(pos)):
+            return Tile(0, 0)
+        
         return self.Map[pos.y][pos.x]
     
     def GetCharacter(self, currentTile, direction):
@@ -192,7 +199,7 @@ class Board:
                 yPoint = int(y / 3)
 
                 currentTile = self.Map[yPoint][xPoint]
-                
+
                 yRem = y % 3
                 xRem = x % 3
 
@@ -292,8 +299,6 @@ def NextInstruction(currentPos, nextPos):
     Forward()
     return True
 
-            
-
 def Forward():
     global board, turtle
 
@@ -313,12 +318,106 @@ def CalculateRoute():
 
 
 
+
+def RandomiseMap():
+    global actualMap, turtle
+
+    def IsOnGuranteedPath(path, pos):
+        for pathPos in path:
+            if pos.x == pathPos.x and pos.y == pathPos.y:
+                return True
+
+    guranteedPath = [
+        Position(4, 7),
+        Position(5, 7),
+        Position(6, 7),
+        Position(6, 6),
+        Position(6, 5),
+        Position(5, 5),
+        Position(5, 4),
+        Position(5, 3),
+        Position(6, 3),
+        Position(7, 3),
+        Position(7, 2),
+        Position(7, 1),
+        Position(6, 1),
+        Position(5, 1),
+        Position(4, 1),
+        Position(3, 1),
+        Position(3, 0)
+    ]
+    
+    for y in range(actualMap.MapHeight):
+        for x in range(actualMap.MapWidth):            
+            actualMap.Map[y][x].CheckedDirections = [True, True, True, True]
+
+    for y in range(actualMap.MapHeight):
+        for x in range(actualMap.MapWidth):
+            if ((x + y) % 2 == 0):
+                continue
+
+            pos = Position(x, y)
+
+
+
+            isNorth = random.choice([True, False])
+            isEast = random.choice([True, False])
+            isSouth = random.choice([True, False])
+            isWest = random.choice([True, False])
+
+            if (x == turtle.Pos.x and y == turtle.Pos.y or IsOnGuranteedPath(guranteedPath, Position(x, y))):
+                isNorth = True
+                isEast = True
+                isSouth = True
+                isWest = True
+
+            n = pos.NextPosition(Direction.NORTH)
+            e = pos.NextPosition(Direction.EAST)
+            s = pos.NextPosition(Direction.SOUTH)
+            w = pos.NextPosition(Direction.WEST)
+
+            if (n.y >= 0):
+                northTile = actualMap.Map[n.y][n.x]
+                northTile.AvailableDirections[Direction.ReverseDirection(Direction.NORTH)] = isNorth
+
+            if (e.x < actualMap.MapWidth):
+                eastTile = actualMap.Map[e.y][e.x]
+                eastTile.AvailableDirections[Direction.ReverseDirection(Direction.EAST)] = isEast
+
+            if (s.y < actualMap.MapHeight):
+                southTile = actualMap.Map[s.y][s.x]
+                southTile.AvailableDirections[Direction.ReverseDirection(Direction.SOUTH)] = isSouth
+
+
+            if (w.x >= 0):
+                westTile = actualMap.Map[w.y][w.x]
+                westTile.AvailableDirections[Direction.ReverseDirection(Direction.WEST)] = isWest
+
+
+
+
+            currentTile = actualMap.Map[pos.y][pos.x]
+
+            currentTile.AvailableDirections[Direction.NORTH] = isNorth
+            currentTile.AvailableDirections[Direction.EAST] = isEast
+            currentTile.AvailableDirections[Direction.SOUTH] = isSouth
+            currentTile.AvailableDirections[Direction.WEST] = isWest
+
+
+
+
+
+    
+
+
 startPos = Position(4, 7) #X, Y
 endPos = Position(3, 0)
 turtle = TurtleInfo(Direction.NORTH, startPos, endPos)
 board = Board()
 
-board.PrintKnownBoard(turtle)
+actualMap = Board()
+RandomiseMap()
+actualMap.PrintKnownBoard(turtle)
 
 def Main():
     global board, turtle
