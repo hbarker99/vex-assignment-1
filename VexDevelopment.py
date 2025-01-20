@@ -28,15 +28,15 @@ class Direction:
         difference = current - final
 
         if (difference == 0):
-            return Direction(RIGHT, 0)
+            return DirectionInstruction(RIGHT, 0)
 
         if (difference == -1 or difference == 3):
-            return DirectionInstruction(LEFT, 1)
+            return DirectionInstruction(RIGHT, 1)
         
         if (difference == 2 or difference == -2):
             return DirectionInstruction(RIGHT, 2)
         
-        return DirectionInstruction(RIGHT, 1)
+        return DirectionInstruction(LEFT, 1)
     
     @staticmethod
     def ReverseDirection(direction):
@@ -82,18 +82,17 @@ class Position:
         vertModifier = 0
         horizModifier = 0
 
-        match (direction):
-            case Direction.NORTH:
-                vertModifier = -1
+        if (direction == Direction.NORTH):
+            vertModifier = -1
             
-            case Direction.EAST:
-                horizModifier = 1
+        elif (direction == Direction.EAST):
+            horizModifier = 1
             
-            case Direction.SOUTH:
-                vertModifier = 1
+        if (direction == Direction.SOUTH):
+            vertModifier = 1
 
-            case Direction.WEST:
-                horizModifier = -1
+        if (direction == Direction.WEST):
+            horizModifier = -1
 
         return Position(self.x + horizModifier, self.y + vertModifier)
 
@@ -136,7 +135,7 @@ class Tile:
             return DiscoveryInstruction.FASTEST if undiscoveredDirections == 1 else DiscoveryInstruction.SLOWEST
     
     def UpdateInfo(self, direction, hasWall):
-        self.AvailableDirections[direction] = hasWall
+        self.AvailableDirections[direction] = not hasWall
         self.CheckedDirections[direction] = True
     
 class Board:
@@ -145,6 +144,10 @@ class Board:
     MapHeight = 8
 
     def __init__(self):
+        self.Map = []
+        self.MapWidth = 8
+        self.MapHeight = 8
+
         for y in range(self.MapHeight):
             self.Map.append([])
             for x in range(self.MapWidth):
@@ -162,13 +165,13 @@ class Board:
             horizChange = (- direction) + 2
 
         for i in range(closestWall + 1):
-            self.Map[position.y + vertChange * i][position.x + horizChange * i].UpdateInfo(direction, i == closestWall)
+            self.Map[position.y + (vertChange * i)][position.x + (horizChange * i)].UpdateInfo(direction, i == closestWall)
 
         for i in range(closestWall + 1, 0, -1):
-            if (self.ExceedsMapBounds(Position(position.x + horizChange, position.y + vertChange))):
+            if (self.ExceedsMapBounds(Position(position.x + (horizChange * i), position.y + (vertChange * i)))):
                 continue
 
-            self.Map[position.y + vertChange * i][position.x + horizChange * i].UpdateInfo(Direction.ReverseDirection(direction), i == closestWall + 1)
+            self.Map[position.y + (vertChange * i)][position.x + (horizChange * i)].UpdateInfo(Direction.ReverseDirection(direction), i == closestWall + 1)
 
 
     def ExceedsMapBounds(self, position):
@@ -229,25 +232,78 @@ class Board:
                     character = self.GetCharacter(currentTile, Direction.SOUTH)
 
                 print(character, end='')
-                
+
+class AStar:
+    Map = []
+    Route = []
+    Goal = Position(0, 0)
+    Current = Position(0, 0)
+
+    class Node:
+        def __init__(self, x, y, distance, currentCost, node):
+            self.x = x
+            self.y = y
+            self.Distance = distance
+            self.CurrentCost = currentCost
+            self.PreviousNode = node
+
+    def __init__(self, map, current, goal):
+        self.Map = map
+        self.Current = current
+        self.Goal = goal
+
+    def Heuristic(self, point):
+        return abs(self.Goal.x - point.x) + abs(self.Goal.y - point.y)
+
+    def CalculateRoute(self, current, theMap):
+        self.Current = current
+        self.Route = []
+        self.Map = theMap
+
+        routeFound = False
+        checkOrder = [self.Node(current.x, current.y, self.Heuristic(current), 0, None)]
+
+        while (not routeFound):
+            currentNode = checkOrder.pop(0)
+            availableDirections = self.Map[currentNode.y][currentNode.x].AvailableDirections
+
+            for i in range(len(availableDirections)):
+                if (not availableDirections[i]):
+                    continue
+
+                checkingPoint = Position(currentNode.x, currentNode.y).NextPosition(i)
+                stepCost = currentNode.CurrentCost + 1
+                distance = self.Heuristic(checkingPoint) + stepCost
+                finalNode = self.Node(checkingPoint.x, checkingPoint.y, distance, stepCost, currentNode)
+
+                if (len(checkOrder) == 0):
+                    checkOrder.append(finalNode)
+
+                for node in range(len(checkOrder)):
+                    if (finalNode.Distance < checkOrder[node].Distance):
+                        checkOrder.insert(node, finalNode)
 
 
-        
+
+
+
+
 
 
 class TurtleInfo:
     CurrentDirection = Direction.NORTH
     Pos = Position(0, 0)
     Goal = Position(0, 0)
+    ActualMap = Board()
 
-    def __init__(self, direction, start, goal):
+
+    def __init__(self, direction, start, goal, actualMap):
         self.Pos = start
         self.Goal = goal
         self.CurrentDirection = direction
+        self.ActualMap = actualMap
 
     def Turn(self, direction):
-        #Turn 90 degrees in direction
-
         if (direction == RIGHT):
             self.CurrentDirection = Direction.RightFrom(self.CurrentDirection)
 
@@ -259,9 +315,19 @@ class TurtleInfo:
 
         self.Pos = self.Pos.NextPosition(self.CurrentDirection)
 
-    def ClosestWall(self):
+    def GetDistance(self):
         distance = 62
-        tiles = round((62 - distance) / 10) / 25
+        position = Position(self.Pos.x, self.Pos.y)
+
+        while (self.ActualMap.GetTile(position).AvailableDirections[self.CurrentDirection]):
+            distance = distance + 250
+            position = position.NextPosition(self.CurrentDirection)
+
+        return distance
+
+    def ClosestWall(self):
+        distance = self.GetDistance()
+        tiles = int(round((distance - 62) / 10) / 25)
         return tiles
 
 
@@ -273,7 +339,12 @@ def NextInstruction(currentPos, nextPos):
 
     instruction = Direction.FastestRotation(turtle.CurrentDirection, nextDirection)
     discoveryInstruction = currentTile.GetDiscoveryInstruction(turtle.CurrentDirection, nextDirection)
-    
+
+    print("Next Direction: " + str(nextDirection))
+    print("Current Direction: " + str(turtle.CurrentDirection))
+    print("Instruction Direction is Right: " + str(instruction.RotationDirection == RIGHT))
+    print("Instruction Rotations: " + str(instruction.Rotations))
+
     if (discoveryInstruction != DiscoveryInstruction.FASTEST):
         #Can be optimised - doesn't need to turn 90 degrees
         if (discoveryInstruction == DiscoveryInstruction.CHECKLEFT):
@@ -313,14 +384,17 @@ def Turn(direction):
     board.Discover(turtle.Pos, turtle.CurrentDirection, turtle.ClosestWall())
 
 
-def CalculateRoute():
-    pass
+def CalculateRoute(turtle):
+    start = turtle.Pos
+    goal = turtle.Goal
+
+    checkNext = []
 
 
 
 
-def RandomiseMap():
-    global actualMap, turtle
+def RandomiseMap(turtle):
+    global actualMap
 
     def IsOnGuranteedPath(path, pos):
         for pathPos in path:
@@ -403,29 +477,43 @@ def RandomiseMap():
             currentTile.AvailableDirections[Direction.SOUTH] = isSouth
             currentTile.AvailableDirections[Direction.WEST] = isWest
 
-
-
-
-
-    
+    for i in range(actualMap.MapWidth):
+        actualMap.Map[0][i].AvailableDirections[Direction.NORTH] = False
+        actualMap.Map[actualMap.MapHeight - 1][i].AvailableDirections[Direction.SOUTH] = False
+        actualMap.Map[i][0].AvailableDirections[Direction.WEST] = False
+        actualMap.Map[i][actualMap.MapWidth - 1].AvailableDirections[Direction.EAST] = False
 
 
 startPos = Position(4, 7) #X, Y
 endPos = Position(3, 0)
-turtle = TurtleInfo(Direction.NORTH, startPos, endPos)
 board = Board()
 
 actualMap = Board()
-RandomiseMap()
+turtle = TurtleInfo(Direction.NORTH, startPos, endPos, actualMap)
+RandomiseMap(turtle)
+
+
+
 actualMap.PrintKnownBoard(turtle)
+print()
+board.PrintKnownBoard(turtle)
+print("\n")
+
+def Quick(pos):
+    NextInstruction(turtle.Pos, pos)
+    board.PrintKnownBoard(turtle)
+    print()
+
 
 def Main():
     global board, turtle
     
-    currentRoute = CalculateRoute()
-    while (turtle.Pos != turtle.Goal):
+    Quick(Position(5, 7))
+    Quick(Position(6, 7))
+    Quick(Position(6, 6))
+    Quick(Position(6, 5))
+    Quick(Position(5, 5))
+    print("Fin")
 
-        movingTo = currentRoute.pop(0)
-        
-        if (not NextInstruction(turtle.Pos, movingTo)):
-            currentRoute = CalculateRoute()
+
+Main()
