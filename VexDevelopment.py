@@ -53,7 +53,7 @@ class Direction:
         if (startPos.x < endPos.x):
             required = Direction.EAST
 
-        elif (startPos.x > endPos.y):
+        elif (startPos.x > endPos.x):
             required = Direction.WEST
 
         elif (startPos.y < endPos.y):
@@ -194,9 +194,10 @@ class Board:
         return 'O' if isAvailable else '#'
 
     
-    def PrintKnownBoard(self, turtle):
+    def PrintKnownBoard(self, turtle, route=None):
         for y in range(self.MapHeight * 3):
             print()
+            print(" " + str(int(y / 3)) + "  ", end='')
             for x in range(self.MapWidth * 3):
                 xPoint = int(x / 3)
                 yPoint = int(y / 3)
@@ -213,9 +214,12 @@ class Board:
 
                 elif (yRem == 1 and xRem == 1):
                     if (turtle.Pos.x == xPoint and turtle.Pos.y == yPoint):
-                        character = 'T'
+                        character = '\033[92mT\33[37m'
                     elif (turtle.Goal.x == xPoint and turtle.Goal.y == yPoint):
-                        character = 'G'
+                        character = '\33[31mG\33[37m'
+                    elif (route != None and (xPoint, yPoint) in [(x.x, x.y) for x in route]):
+                        character = '\033[95mP\33[37m'
+                        
                     else:
                         character = 'O'
 
@@ -231,63 +235,110 @@ class Board:
                 elif (yRem == 2 and xRem == 1):
                     character = self.GetCharacter(currentTile, Direction.SOUTH)
 
-                print(character, end='')
+                print(character + " ", end='')
+
+        print()
+        print("    ", end='')
+        for i in range(0, self.MapWidth):
+            print((str(i) + " ") * 3, end='')
 
 class AStar:
-    Map = []
     Route = []
     Goal = Position(0, 0)
-    Current = Position(0, 0)
 
     class Node:
-        def __init__(self, x, y, distance, currentCost, node):
+        def __init__(self, x, y, totalCost, currentCost, node):
             self.x = x
             self.y = y
-            self.Distance = distance
+            self.TotalCost = totalCost
             self.CurrentCost = currentCost
             self.PreviousNode = node
 
-    def __init__(self, map, current, goal):
-        self.Map = map
-        self.Current = current
+    def __init__(self, goal):
         self.Goal = goal
 
     def Heuristic(self, point):
         return abs(self.Goal.x - point.x) + abs(self.Goal.y - point.y)
+    
+    def GetRoute(self, finalNode):
+        route = []
+        checkingNode = finalNode
+
+        while (checkingNode.PreviousNode != None):
+            route.append(Position(checkingNode.x, checkingNode.y))
+            checkingNode = checkingNode.PreviousNode
+
+        route.reverse()
+        return route
 
     def CalculateRoute(self, current, theMap):
         self.Current = current
         self.Route = []
-        self.Map = theMap
 
         routeFound = False
         checkOrder = [self.Node(current.x, current.y, self.Heuristic(current), 0, None)]
 
         while (not routeFound):
             currentNode = checkOrder.pop(0)
-            availableDirections = self.Map[currentNode.y][currentNode.x].AvailableDirections
+            nodeRoute = [(x.x, x.y) for x in self.GetRoute(currentNode)]
+            availableDirections = theMap.Map[currentNode.y][currentNode.x].AvailableDirections
 
             for i in range(len(availableDirections)):
                 if (not availableDirections[i]):
                     continue
 
+
                 checkingPoint = Position(currentNode.x, currentNode.y).NextPosition(i)
+                
+                if (currentNode.PreviousNode != None and (checkingPoint.x, checkingPoint.y) in nodeRoute):
+                    continue
+
                 stepCost = currentNode.CurrentCost + 1
-                distance = self.Heuristic(checkingPoint) + stepCost
-                finalNode = self.Node(checkingPoint.x, checkingPoint.y, distance, stepCost, currentNode)
+                totalCost = self.Heuristic(checkingPoint) + stepCost
+                finalNode = self.Node(checkingPoint.x, checkingPoint.y, totalCost, stepCost, currentNode)
+
+                if ((finalNode.x, finalNode.y) == (self.Goal.x, self.Goal.y)):
+                    routeFound = True
+                    self.Route = self.GetRoute(finalNode)
+                    break
 
                 if (len(checkOrder) == 0):
                     checkOrder.append(finalNode)
 
+                inserted = False
+                removing = False
+
+                removeAt = 0
+                insertAt = 0
+
                 for node in range(len(checkOrder)):
-                    if (finalNode.Distance < checkOrder[node].Distance):
-                        checkOrder.insert(node, finalNode)
+                    if (not inserted and finalNode.TotalCost <= checkOrder[node].TotalCost):
+                        insertAt = node
+                        inserted = True
 
+                    if ((finalNode.x, finalNode.y) == (checkOrder[node].x, checkOrder[node].y)):
+                        if (inserted):
+                            removing = True
+                            removeAt = node
+                            break
+                        else:
+                            break
 
+                if (inserted):
+                    checkOrder.insert(insertAt, finalNode)
 
+                if (removing):
+                    checkOrder.pop(removeAt)
 
+                elif(not removing and not inserted):
+                    checkOrder.append(finalNode)
 
-
+        if (not routeFound):
+            print("No route to goal was found.")
+        
+        return self.Route
+                               
+        
 
 
 class TurtleInfo:
@@ -494,26 +545,36 @@ RandomiseMap(turtle)
 
 
 
-actualMap.PrintKnownBoard(turtle)
-print()
-board.PrintKnownBoard(turtle)
-print("\n")
-
-def Quick(pos):
-    NextInstruction(turtle.Pos, pos)
-    board.PrintKnownBoard(turtle)
-    print()
-
 
 def Main():
     global board, turtle
-    
-    Quick(Position(5, 7))
-    Quick(Position(6, 7))
-    Quick(Position(6, 6))
-    Quick(Position(6, 5))
-    Quick(Position(5, 5))
-    print("Fin")
+    calulator = AStar(turtle.Goal)
+    route = calulator.CalculateRoute(turtle.Pos, board)
+    actualMap.PrintKnownBoard(turtle, route)
+    print()
+    print()
+
+
+    while ((turtle.Pos.x, turtle.Pos.y) != (turtle.Goal.x, turtle.Goal.y)):
+        print("---")
+        board.PrintKnownBoard(turtle, route)
+        print()
+        print()
+        nextPos = route.pop(0)
+        print("Current position x: " + str(turtle.Pos.x) + "   y: " + str(turtle.Pos.y))
+        print("Next position x: " + str(nextPos.x) + "   y: " + str(nextPos.y))
+
+        if (not NextInstruction(turtle.Pos, nextPos)):
+            print("Hit a wall!")
+            route = calulator.CalculateRoute(turtle.Pos, board)
+
+
+        board.PrintKnownBoard(turtle, route)
+        print()
+        input("Waiting..")
+        print("---")
+
+    print("Made it to the end!")
 
 
 Main()
