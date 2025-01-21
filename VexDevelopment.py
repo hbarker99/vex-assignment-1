@@ -1,3 +1,4 @@
+#endregion VEXcode Generated Robot Configuration
 import random
 
 RIGHT = 1
@@ -69,7 +70,7 @@ class Direction:
         
 
 
-class Position:
+class Point:
     x = 0
     y = 0
 
@@ -94,15 +95,15 @@ class Position:
         if (direction == Direction.WEST):
             horizModifier = -1
 
-        return Position(self.x + horizModifier, self.y + vertModifier)
+        return Point(self.x + horizModifier, self.y + vertModifier)
 
 class Tile:
-    Pos = Position(0, 0)
+    Pos = Point(0, 0)
     AvailableDirections = [True, True, True, True] #North, East, South, West
     CheckedDirections = [False, False, False, False] 
 
     def __init__(self, x, y):
-        self.Pos = Position(x, y)
+        self.Pos = Point(x, y)
         self.AvailableDirections = [True, True, True, True] #North, East, South, West
         self.CheckedDirections = [False, False, False, False] 
 
@@ -153,7 +154,7 @@ class Board:
             for x in range(self.MapWidth):
                 self.Map[y].append(Tile(x, y))
 
-    def Discover(self, position, direction, closestWall):
+    def Discover(self, startPos, direction, closestWall):
 
         horizChange = 0
         vertChange = 0
@@ -165,17 +166,17 @@ class Board:
             horizChange = (- direction) + 2
 
         for i in range(closestWall + 1):
-            self.Map[position.y + (vertChange * i)][position.x + (horizChange * i)].UpdateInfo(direction, i == closestWall)
+            self.Map[startPos.y + (vertChange * i)][startPos.x + (horizChange * i)].UpdateInfo(direction, i == closestWall)
 
         for i in range(closestWall + 1, 0, -1):
-            if (self.ExceedsMapBounds(Position(position.x + (horizChange * i), position.y + (vertChange * i)))):
+            if (self.ExceedsMapBounds(Point(startPos.x + (horizChange * i), startPos.y + (vertChange * i)))):
                 continue
 
-            self.Map[position.y + (vertChange * i)][position.x + (horizChange * i)].UpdateInfo(Direction.ReverseDirection(direction), i == closestWall + 1)
+            self.Map[startPos.y + (vertChange * i)][startPos.x + (horizChange * i)].UpdateInfo(Direction.ReverseDirection(direction), i == closestWall + 1)
 
 
-    def ExceedsMapBounds(self, position):
-        return position.x < 0 or position.x >= self.MapWidth or position.y < 0 or position.y >= self.MapHeight
+    def ExceedsMapBounds(self, currentPos):
+        return currentPos.x < 0 or currentPos.x >= self.MapWidth or currentPos.y < 0 or currentPos.y >= self.MapHeight
     
     def GetTile(self, pos):
         if (self.ExceedsMapBounds(pos)):
@@ -193,58 +194,10 @@ class Board:
         
         return 'O' if isAvailable else '#'
 
-    
-    def PrintKnownBoard(self, turtle, route=None):
-        for y in range(self.MapHeight * 3):
-            print()
-            print(" " + str(int(y / 3)) + "  ", end='')
-            for x in range(self.MapWidth * 3):
-                xPoint = int(x / 3)
-                yPoint = int(y / 3)
-
-                currentTile = self.Map[yPoint][xPoint]
-
-                yRem = y % 3
-                xRem = x % 3
-
-                character = ''
-
-                if (yRem != 1 and xRem != 1):
-                    character = '#'
-
-                elif (yRem == 1 and xRem == 1):
-                    if (turtle.Pos.x == xPoint and turtle.Pos.y == yPoint):
-                        character = '\033[92mT\33[37m'
-                    elif (turtle.Goal.x == xPoint and turtle.Goal.y == yPoint):
-                        character = '\33[31mG\33[37m'
-                    elif (route != None and (xPoint, yPoint) in [(x.x, x.y) for x in route]):
-                        character = '\033[95mP\33[37m'
-                        
-                    else:
-                        character = 'O'
-
-                elif (yRem == 0 and xRem == 1):
-                    character = self.GetCharacter(currentTile, Direction.NORTH)
-
-                elif (yRem == 1 and xRem == 0):
-                    character = self.GetCharacter(currentTile, Direction.WEST)
-
-                elif (yRem == 1 and xRem == 2):
-                    character = self.GetCharacter(currentTile, Direction.EAST)
-
-                elif (yRem == 2 and xRem == 1):
-                    character = self.GetCharacter(currentTile, Direction.SOUTH)
-
-                print(character + " ", end='')
-
-        print()
-        print("    ", end='')
-        for i in range(0, self.MapWidth):
-            print((str(i) + " ") * 3, end='')
 
 class AStar:
     Route = []
-    Goal = Position(0, 0)
+    Goal = Point(0, 0)
 
     class Node:
         def __init__(self, x, y, totalCost, currentCost, node):
@@ -265,7 +218,7 @@ class AStar:
         checkingNode = finalNode
 
         while (checkingNode.PreviousNode != None):
-            route.append(Position(checkingNode.x, checkingNode.y))
+            route.append(Point(checkingNode.x, checkingNode.y))
             checkingNode = checkingNode.PreviousNode
 
         route.reverse()
@@ -287,8 +240,8 @@ class AStar:
                 if (not availableDirections[i]):
                     continue
 
-
-                checkingPoint = Position(currentNode.x, currentNode.y).NextPosition(i)
+                
+                checkingPoint = Point(currentNode.x, currentNode.y).NextPosition(i)
                 
                 if (currentNode.PreviousNode != None and (checkingPoint.x, checkingPoint.y) in nodeRoute):
                     continue
@@ -334,7 +287,8 @@ class AStar:
                     checkOrder.append(finalNode)
 
         if (not routeFound):
-            print("No route to goal was found.")
+            #brain.print("No route to goal was found.")
+            pass
         
         return self.Route
                                
@@ -343,18 +297,18 @@ class AStar:
 
 class TurtleInfo:
     CurrentDirection = Direction.NORTH
-    Pos = Position(0, 0)
-    Goal = Position(0, 0)
-    ActualMap = Board()
+    Pos = Point(0, 0)
+    Goal = Point(0, 0)
 
 
-    def __init__(self, direction, start, goal, actualMap):
+    def __init__(self, direction, start, goal):
         self.Pos = start
         self.Goal = goal
         self.CurrentDirection = direction
-        self.ActualMap = actualMap
 
     def Turn(self, direction):
+
+        #drivetrain.turn_for(direction, 90, DEGREES)
         if (direction == RIGHT):
             self.CurrentDirection = Direction.RightFrom(self.CurrentDirection)
 
@@ -363,21 +317,12 @@ class TurtleInfo:
 
     def Forward(self):
         #Drive Forward
+        #drivetrain.drive_for(FORWARD, 250, MM)
 
         self.Pos = self.Pos.NextPosition(self.CurrentDirection)
 
-    def GetDistance(self):
-        distance = 62
-        position = Position(self.Pos.x, self.Pos.y)
-
-        while (self.ActualMap.GetTile(position).AvailableDirections[self.CurrentDirection]):
-            distance = distance + 250
-            position = position.NextPosition(self.CurrentDirection)
-
-        return distance
-
     def ClosestWall(self):
-        distance = self.GetDistance()
+        distance = 63#front_distance.get_distance(MM)
         tiles = int(round((distance - 62) / 10) / 25)
         return tiles
 
@@ -391,13 +336,8 @@ def NextInstruction(currentPos, nextPos):
     instruction = Direction.FastestRotation(turtle.CurrentDirection, nextDirection)
     discoveryInstruction = currentTile.GetDiscoveryInstruction(turtle.CurrentDirection, nextDirection)
 
-    print("Next Direction: " + str(nextDirection))
-    print("Current Direction: " + str(turtle.CurrentDirection))
-    print("Instruction Direction is Right: " + str(instruction.RotationDirection == RIGHT))
-    print("Instruction Rotations: " + str(instruction.Rotations))
 
     if (discoveryInstruction != DiscoveryInstruction.FASTEST):
-        #Can be optimised - doesn't need to turn 90 degrees
         if (discoveryInstruction == DiscoveryInstruction.CHECKLEFT):
             Turn(LEFT)
             Turn(RIGHT)
@@ -414,7 +354,6 @@ def NextInstruction(currentPos, nextPos):
     for _ in range(instruction.Rotations):
         Turn(instruction.RotationDirection)
 
-    #If we're facing the suggested direction and there's a wall we need a new route
     if (turtle.ClosestWall() == 0):
         return False
     
@@ -435,146 +374,20 @@ def Turn(direction):
     board.Discover(turtle.Pos, turtle.CurrentDirection, turtle.ClosestWall())
 
 
-def CalculateRoute(turtle):
-    start = turtle.Pos
-    goal = turtle.Goal
-
-    checkNext = []
-
-
-
-
-def RandomiseMap(turtle):
-    global actualMap
-
-    def IsOnGuranteedPath(path, pos):
-        for pathPos in path:
-            if pos.x == pathPos.x and pos.y == pathPos.y:
-                return True
-
-    guranteedPath = [
-        Position(4, 7),
-        Position(5, 7),
-        Position(6, 7),
-        Position(6, 6),
-        Position(6, 5),
-        Position(5, 5),
-        Position(5, 4),
-        Position(5, 3),
-        Position(6, 3),
-        Position(7, 3),
-        Position(7, 2),
-        Position(7, 1),
-        Position(6, 1),
-        Position(5, 1),
-        Position(4, 1),
-        Position(3, 1),
-        Position(3, 0)
-    ]
-    
-    for y in range(actualMap.MapHeight):
-        for x in range(actualMap.MapWidth):            
-            actualMap.Map[y][x].CheckedDirections = [True, True, True, True]
-
-    for y in range(actualMap.MapHeight):
-        for x in range(actualMap.MapWidth):
-            if ((x + y) % 2 == 0):
-                continue
-
-            pos = Position(x, y)
-
-
-
-            isNorth = random.choice([True, False])
-            isEast = random.choice([True, False])
-            isSouth = random.choice([True, False])
-            isWest = random.choice([True, False])
-
-            if (x == turtle.Pos.x and y == turtle.Pos.y or IsOnGuranteedPath(guranteedPath, Position(x, y))):
-                isNorth = True
-                isEast = True
-                isSouth = True
-                isWest = True
-
-            n = pos.NextPosition(Direction.NORTH)
-            e = pos.NextPosition(Direction.EAST)
-            s = pos.NextPosition(Direction.SOUTH)
-            w = pos.NextPosition(Direction.WEST)
-
-            if (n.y >= 0):
-                northTile = actualMap.Map[n.y][n.x]
-                northTile.AvailableDirections[Direction.ReverseDirection(Direction.NORTH)] = isNorth
-
-            if (e.x < actualMap.MapWidth):
-                eastTile = actualMap.Map[e.y][e.x]
-                eastTile.AvailableDirections[Direction.ReverseDirection(Direction.EAST)] = isEast
-
-            if (s.y < actualMap.MapHeight):
-                southTile = actualMap.Map[s.y][s.x]
-                southTile.AvailableDirections[Direction.ReverseDirection(Direction.SOUTH)] = isSouth
-
-
-            if (w.x >= 0):
-                westTile = actualMap.Map[w.y][w.x]
-                westTile.AvailableDirections[Direction.ReverseDirection(Direction.WEST)] = isWest
-
-
-
-
-            currentTile = actualMap.Map[pos.y][pos.x]
-
-            currentTile.AvailableDirections[Direction.NORTH] = isNorth
-            currentTile.AvailableDirections[Direction.EAST] = isEast
-            currentTile.AvailableDirections[Direction.SOUTH] = isSouth
-            currentTile.AvailableDirections[Direction.WEST] = isWest
-
-    for i in range(actualMap.MapWidth):
-        actualMap.Map[0][i].AvailableDirections[Direction.NORTH] = False
-        actualMap.Map[actualMap.MapHeight - 1][i].AvailableDirections[Direction.SOUTH] = False
-        actualMap.Map[i][0].AvailableDirections[Direction.WEST] = False
-        actualMap.Map[i][actualMap.MapWidth - 1].AvailableDirections[Direction.EAST] = False
-
-
-startPos = Position(4, 7) #X, Y
-endPos = Position(3, 0)
+startPos = Point(4, 7) #X, Y
+endPos = Point(3, 0)
 board = Board()
 
-actualMap = Board()
-turtle = TurtleInfo(Direction.NORTH, startPos, endPos, actualMap)
-RandomiseMap(turtle)
-
-
+turtle = TurtleInfo(Direction.NORTH, startPos, endPos)
 
 
 def Main():
     global board, turtle
     calulator = AStar(turtle.Goal)
     route = calulator.CalculateRoute(turtle.Pos, board)
-    actualMap.PrintKnownBoard(turtle, route)
-    print()
-    print()
-
 
     while ((turtle.Pos.x, turtle.Pos.y) != (turtle.Goal.x, turtle.Goal.y)):
-        print("---")
-        board.PrintKnownBoard(turtle, route)
-        print()
-        print()
         nextPos = route.pop(0)
-        print("Current position x: " + str(turtle.Pos.x) + "   y: " + str(turtle.Pos.y))
-        print("Next position x: " + str(nextPos.x) + "   y: " + str(nextPos.y))
 
         if (not NextInstruction(turtle.Pos, nextPos)):
-            print("Hit a wall!")
             route = calulator.CalculateRoute(turtle.Pos, board)
-
-
-        board.PrintKnownBoard(turtle, route)
-        print()
-        input("Waiting..")
-        print("---")
-
-    print("Made it to the end!")
-
-
-Main()
